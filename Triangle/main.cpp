@@ -1,92 +1,103 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
-#include "iostream";
-
-void framebuffer_size_callback(GLFWwindow* window, int width, int height)
-{
-	glViewport(0, 0, width, height);
-}
-
-const char* vertexShaderSource = "#version 330 core\n"
-"layout (location = 0) in vec3 aPos;\n"
-"void main()\n"
-"{\n"
-" gl_Position = vec4(aPos.x, aPos.y, aPos.z, 1.0);\n"
-"}\0";
-
-const char* fragmentShaderSource = "#version 330 core\n"
-"out vec4 FragColor;\n"
-"void main()\n"
-"{\n"
-"	FragColor = vec4(1.0f, 0.5f, 0.2f, 1.0f); \n"
-"}\n";
+#include <iostream>
+#include <string>
 
 int main()
 {
-	glfwInit();
+	constexpr auto vertexShaderSrc = R"(
+		#version 330 core
+		layout (location = 0) in vec3 aPos;
+		uniform vec3 uPosition;
+		void main()
+		{
+			gl_Position = vec4(aPos + uPosition, 1.0);
+		}
+	)";
+
+	constexpr auto fragmentShaderSrc = R"(
+		#version 330 core
+		out vec4 FragColor;
+		uniform vec3 uColor;
+		void main()
+		{
+			FragColor = vec4(uColor, 1.0);
+		}
+	)";
+
+	glfwSetErrorCallback([](int code, const char* description)
+	{
+		std::cout << std::to_string(code) << " " << description;
+	});
+
+	if (!glfwInit())
+	{
+		std::cout << "Failed to initialize GLFW library!\n";
+		glfwTerminate();
+		return 1;
+	}
+
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+	glfwWindowHint(GLFW_SAMPLES, 8);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-
-	GLFWwindow* window = glfwCreateWindow(800, 600, "LearnOpenGL", NULL, NULL);
-	if (window == NULL)
+	GLFWwindow* window = glfwCreateWindow(800, 600, "LearnOpenGL", nullptr, nullptr);
+	if (window == nullptr)
 	{
 		std::cout << "Failed to create GLFW window" << std::endl;
 		glfwTerminate();
 		return -1;
 	}
+
 	glfwMakeContextCurrent(window);
 
-	if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
+	if (!gladLoadGLLoader(reinterpret_cast<GLADloadproc>(glfwGetProcAddress)))
 	{
 		std::cout << "Failed to initialize GLAD" << std::endl;
 		return -1;
 	}
 
-	glViewport(0, 0, 800, 600);
-	glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
+	glEnable(GL_MULTISAMPLE);
+	
+	glfwSetFramebufferSizeCallback(window, [](GLFWwindow*, int width, int height)
+	{
+		glViewport(0, 0, width, height);
+	});
 
 
-	float vertices[] = {
-		-0.5f, -0.5f, 0.0f,
+	constexpr float vertices[] = {
+	   -0.5f, -0.5f, 0.0f,
 		0.5f, -0.5f, 0.0f,
-		0.0f, 0.5f, 0.0f
+		0.0f,  0.5f, 0.0f
 	};
 	
-	unsigned int VAO;
+	uint32_t VAO{};
+	uint32_t VBO{};
 	glGenVertexArrays(1, &VAO);
-
-	unsigned int VBO;
 	glGenBuffers(1, &VBO);
-
 	glBindVertexArray(VAO);
 
 	glBindBuffer(GL_ARRAY_BUFFER, VBO);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float),
-		(void*)0);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), static_cast<void*>(nullptr));
 	glEnableVertexAttribArray(0);
 
-	unsigned int vertexShader;
-	vertexShader = glCreateShader(GL_VERTEX_SHADER);
-	glShaderSource(vertexShader, 1, &vertexShaderSource, NULL);
+	const uint32_t vertexShader = glCreateShader(GL_VERTEX_SHADER);
+	glShaderSource(vertexShader, 1, &vertexShaderSrc, nullptr);
 	glCompileShader(vertexShader);
 
-	unsigned int fragmentShader;
-	fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-	glShaderSource(fragmentShader, 1, &fragmentShaderSource, NULL);
+	const uint32_t fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+	glShaderSource(fragmentShader, 1, &fragmentShaderSrc, nullptr);
 	glCompileShader(fragmentShader);
 
-	unsigned int shaderProgram;
-	shaderProgram = glCreateProgram();
+	const uint32_t shaderProgram = glCreateProgram();
 	glAttachShader(shaderProgram, vertexShader);
 	glAttachShader(shaderProgram, fragmentShader);
 	glLinkProgram(shaderProgram);
 	glDeleteShader(vertexShader);
 	glDeleteShader(fragmentShader);
-
 
 	while (!glfwWindowShouldClose(window))
 	{
@@ -94,9 +105,14 @@ int main()
 		glClear(GL_COLOR_BUFFER_BIT);
 
 		glBindVertexArray(VAO);
+		glUniform3f(glGetUniformLocation(shaderProgram, "uColor"), 1.0f, 0.5f, 1.0f);
+		glUniform3f(glGetUniformLocation(shaderProgram, "uPosition"), 0.0f, 0.0f, 0.0f);
 		glUseProgram(shaderProgram);
 		glDrawArrays(GL_TRIANGLES, 0, 3);
 
+		glUniform3f(glGetUniformLocation(shaderProgram, "uColor"), 1.0f, 0.0f, 0.0f);
+		glUniform3f(glGetUniformLocation(shaderProgram, "uPosition"), 0.25f, 0.0f, 0.0f);
+		glDrawArrays(GL_TRIANGLES, 0, 3);
 
 		glfwSwapBuffers(window);
 		glfwPollEvents();
